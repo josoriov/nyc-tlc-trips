@@ -1,0 +1,21 @@
+nyc_tlc_trips:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: your-gcp-project-id
+      dataset: taxi_dbt_dev
+      location: US
+      threads: 4
+      timeout_seconds: 300
+      retries: 1
+    prod:
+      type: bigquery
+      method: oauth
+      project: your-gcp-project-id
+      dataset: taxi_dbt_prod
+      location: US
+      threads: 4
+      timeout_seconds: 300
+      retries: 1

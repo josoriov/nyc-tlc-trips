@@ -1,0 +1,50 @@
+# dbt build artifacts and local runtime files
+target/
+dbt_packages/
+dbt_modules/
+dbt_internal_packages/
+logs/
+dbt.log
+.dbt/
+
+# Local dbt profiles and secrets
+profiles.yml
+*.json
+*.pem
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Terraform local state, caches, plans, and local variables
+.terraform/
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+crash.log
+crash.*.log
+*.tfplan
+tfplan
+tfplan.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: int_trips__features
+    description: >
+      Enriched trip records with derived fields: duration, speed, time-of-day
+      flags, and airport pickup indicator. Filters out trips with impossible
+      durations (<=0 min or >=24 h).
+    columns:
+      - name: pickup_date
+        description: Calendar date of the pickup (derived from pickup_datetime).
+        tests:
+          - not_null
+      - name: pickup_hour
+        description: Hour of the day (0-23) when the pickup occurred.
+      - name: trip_duration_min
+        description: Trip duration in minutes (dropoff − pickup).
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
+      - name: speed_mph
+        description: Average trip speed in miles per hour (safe-divided).
+      - name: is_weekend
+        description: Whether the pickup occurred on a Saturday or Sunday.
+      - name: is_night
+        description: Whether the pickup occurred outside 06:00–20:00.
+      - name: is_airport_pickup
+        description: >
+          Whether the pickup zone is a known airport
+          (1=Newark, 132=JFK, 138=LaGuardia).

@@ -1,0 +1,66 @@
+name: dbt Nightly
+
+on:
+  schedule:
+    # Every day at 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write   # Required for Workload Identity Federation
+  contents: read
+
+env:
+  DBT_PROFILES_DIR: ${{ github.workspace }}
+  PYTHON_VERSION: "3.11"
+  DBT_TARGET: prod
+
+jobs:
+  dbt-nightly:
+    name: dbt build + test (prod, nightly)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dbt
+        run: pip install --quiet dbt-bigquery
+
+      - name: Create profiles.yml
+        run: |
+          cat > "$DBT_PROFILES_DIR/profiles.yml" << 'EOF'
+          nyc_tlc_trips:
+            target: prod
+            outputs:
+              prod:
+                type: bigquery
+                method: oauth
+                project: "{{ env_var('GCP_PROJECT_ID') }}"
+                dataset: taxi_dbt_prod
+                location: US
+                threads: 4
+                timeout_seconds: 300
+                retries: 1
+          EOF
+
+      - name: dbt deps
+        run: dbt deps
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: dbt build (prod)
+        run: dbt build --target "$DBT_TARGET"
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}

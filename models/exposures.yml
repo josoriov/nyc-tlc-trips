@@ -1,0 +1,18 @@
+version: 2
+
+exposures:
+  - name: nyc_taxi_demand_dashboard
+    description: >
+      Dashboard showing daily taxi demand, revenue trends, and zone-level
+      performance across NYC. Intended to answer questions such as:
+      which zones generate the most revenue, when is peak demand, and how
+      do tips vary by time of day.
+    type: dashboard
+    maturity: low
+    owner:
+      name: Juan Osorio
+    depends_on:
+      - ref('fct_trips')
+      - ref('fct_daily_citywide_metrics')
+      - ref('fct_daily_zone_metrics')
+      - ref('dim_zones')

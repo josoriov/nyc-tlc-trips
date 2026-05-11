@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: stg_taxi__yellow_trips
+    description: >
+      Cleaned and standardised yellow taxi trip records from the BigQuery
+      public dataset. Columns are renamed for consistency, types are cast
+      explicitly, and rows with impossible values are filtered out.
+    columns:
+      - name: vendor_id
+        description: "TPEP provider code (1 = Creative Mobile, 2 = VeriFone)."
+        tests:
+          - not_null
+      - name: pickup_location_id
+        description: TLC Taxi Zone ID where the meter was engaged.
+        tests:
+          - not_null
+      - name: dropoff_location_id
+        description: TLC Taxi Zone ID where the meter was disengaged.
+        tests:
+          - not_null
+      - name: pickup_datetime
+        description: Timestamp when the meter was engaged.
+        tests:
+          - not_null
+      - name: dropoff_datetime
+        description: Timestamp when the meter was disengaged.
+        tests:
+          - not_null
+      - name: passenger_count
+        description: Number of passengers (driver-entered).
+      - name: trip_distance
+        description: Trip distance in miles from the taximeter.
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: rate_code
+        description: >
+          Rate code at trip end (1=Standard, 2=JFK, 3=Newark,
+          4=Nassau/Westchester, 5=Negotiated, 6=Group).
+        tests:
+          - accepted_values:
+              config:
+                severity: warn
+              arguments:
+                values: [1, 2, 3, 4, 5, 6, 99]
+                quote: false
+      - name: store_and_fwd_flag
+        description: "Whether trip was held in vehicle memory (Y/N)."
+      - name: payment_type
+        description: "Payment method (1=Card, 2=Cash, 3=No charge, 4=Dispute, 5=Unknown, 6=Voided)."
+        tests:
+          - accepted_values:
+              config:
+                severity: warn
+              arguments:
+                values: [1, 2, 3, 4, 5, 6]
+                quote: false
+      - name: fare_amount
+        description: Meter fare in USD.
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: extra_amount
+        description: Miscellaneous surcharges (rush hour, overnight).
+      - name: mta_tax
+        description: MTA tax.
+      - name: tip_amount
+        description: Tip amount (credit card only; cash tips not recorded).
+      - name: tolls_amount
+        description: Tolls paid during the trip.
+      - name: improvement_surcharge
+        description: Improvement surcharge assessed at flag drop.
+      - name: total_amount
+        description: Total charged to the passenger (excludes cash tips).

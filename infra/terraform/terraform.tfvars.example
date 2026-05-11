@@ -1,0 +1,16 @@
+project_id     = "your-gcp-project-id"
+create_project = false
+github_owner   = "your-github-owner"
+github_repo    = "nyc-tlc-trips"
+
+bigquery_location     = "US"
+dev_dataset_id        = "taxi_dbt_dev"
+prod_dataset_id       = "taxi_dbt_prod"
+ci_service_account_id = "github-dbt-ci"
+wif_pool_id           = "github-pool"
+wif_provider_id       = "github-provider"
+
+# Required only when create_project=true.
+# billing_account = "000000-000000-000000"
+# org_id          = "123456789012"
+# folder_id       = "123456789012"
