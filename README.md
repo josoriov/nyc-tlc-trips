@@ -255,4 +255,4 @@ python scripts/download_seed_data.py
 ---
 
 ## License
-MIT. See `LICENSE`.
+See `LICENSE`.
