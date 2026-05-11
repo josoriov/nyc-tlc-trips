@@ -6,6 +6,7 @@ locals {
   effective_project_id     = var.create_project ? google_project.this[0].project_id : var.project_id
   effective_project_number = var.create_project ? tostring(google_project.this[0].number) : data.google_project.existing[0].number
   github_repository        = "${var.github_owner}/${var.github_repo}"
+  bigquery_expiration_ms   = 60 * 24 * 60 * 60 * 1000
 }
 
 data "google_project" "existing" {
@@ -33,9 +34,11 @@ resource "google_project_service" "required" {
 }
 
 resource "google_bigquery_dataset" "dev" {
-  project    = local.effective_project_id
-  dataset_id = var.dev_dataset_id
-  location   = var.bigquery_location
+  project                         = local.effective_project_id
+  dataset_id                      = var.dev_dataset_id
+  location                        = var.bigquery_location
+  default_table_expiration_ms     = local.bigquery_expiration_ms
+  default_partition_expiration_ms = local.bigquery_expiration_ms
 
   delete_contents_on_destroy = false
 
@@ -43,9 +46,11 @@ resource "google_bigquery_dataset" "dev" {
 }
 
 resource "google_bigquery_dataset" "prod" {
-  project    = local.effective_project_id
-  dataset_id = var.prod_dataset_id
-  location   = var.bigquery_location
+  project                         = local.effective_project_id
+  dataset_id                      = var.prod_dataset_id
+  location                        = var.bigquery_location
+  default_table_expiration_ms     = local.bigquery_expiration_ms
+  default_partition_expiration_ms = local.bigquery_expiration_ms
 
   delete_contents_on_destroy = false
 
@@ -67,6 +72,12 @@ resource "google_service_account" "ci" {
 resource "google_project_iam_member" "ci_job_user" {
   project = local.effective_project_id
   role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+
+resource "google_project_iam_member" "ci_data_editor" {
+  project = local.effective_project_id
+  role    = "roles/bigquery.dataEditor"
   member  = "serviceAccount:${google_service_account.ci.email}"
 }
 
@@ -119,4 +130,3 @@ resource "google_service_account_iam_member" "github_wif_user" {
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${local.github_repository}"
 }
-
