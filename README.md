@@ -1,258 +1,113 @@
 # NYC TLC Trips Analytics
 
-dbt project that transforms **NYC yellow taxi trip records** from the **BigQuery public dataset** into clean, tested, analytics-ready marts. The first version includes local development setup, Terraform-managed BigQuery/GitHub Actions infrastructure, and CI/CD workflows for pull requests, production deploys, and nightly validation.
+A small dbt/BigQuery project that turns NYC yellow-taxi public data into
+dashboard-ready logical views without storing source or transformed data.
 
-## Goals
-- Demonstrate **dbt fundamentals**: sources, staging, marts, tests, docs, macros
-- Use **warehouse-first modeling** in **BigQuery** with partitioned and clustered marts
-- Provide **CI/CD** for analytics via **GitHub Actions**: PR checks, prod deploy, nightly runs
-- Produce **dashboard-ready tables** that answer real questions about taxi demand and revenue
+## What it builds
 
-## Dataset
-- BigQuery public table: `bigquery-public-data.new_york_taxi_trips.tlc_yellow_trips_2022`
-- Dimensional enrichment: Taxi Zone Lookup (seeded CSV mapping `LocationID → Borough/Zone`)
+| Model | Type | Purpose |
+|---|---|---|
+| `stg_taxi__yellow_trips` | view | Clean and type source trips |
+| `dim_zones` | view | TLC zone lookup |
+| `fct_trips` | view | Add duration, speed, time, airport, and zone fields |
+| `fct_daily_citywide_metrics` | view | Daily citywide demand and revenue |
+| `fct_daily_zone_metrics` | view | Daily demand and revenue by pickup zone |
 
-## Tech stack
-- **dbt** (transformations, tests, docs)
-- **BigQuery** (warehouse)
-- **Terraform** (GCP datasets, IAM, Workload Identity Federation)
-- **GitHub Actions** (CI/CD)
-- Optional: **Looker Studio/Metabase** (dashboard)
+The default window is January–March 2022. Change `start_date` and `end_date`
+in `dbt_project.yml` when a larger sample is worth the additional query cost.
 
----
+## Why this shape
 
-## Architecture
+- The public BigQuery table remains the source of truth.
+- Every model is a logical view, so the project stores no model data.
+- Taxi zones come from the public dataset instead of a local seed table.
+- Pull requests parse the project without authenticating to or querying GCP.
+- Production builds run when `main` changes and monthly to renew sandbox views.
+- Tests cover representative null, accepted-value, uniqueness, and relationship
+  checks without rescanning the source for every column.
 
-### Datasets / environments
-- `taxi_dbt_dev` — development target (used by PR builds / local dev)
-- `taxi_dbt_prod` — production target (built on merges to `main`)
+## Local use
 
-### dbt layers
-- `sources/` — definitions for BigQuery public tables
-- `staging/` — cleaned/typed canonical staging models
-- `intermediate/` — feature engineering + reusable business logic
-- `marts/` — facts/dimensions/aggregates for analytics and BI
-
----
-
-## What this project builds
-
-### Core models
-- **`stg_taxi__yellow_trips`**  
-  Clean and standardize trip records (types, names, filters)
-
-- **`dim_zones`**  
-  Taxi zone dimension from seeded lookup table
-
-- **`int_trips__features`**  
-  Derived fields like duration, speed, time flags, airport flags
-
-- **`fct_trips`**  
-  Trip-level fact table (partitioned by date, clustered for performance)
-
-- **`fct_daily_citywide_metrics`**  
-  Daily rides, revenue, tips, durations
-
-- **`fct_daily_zone_metrics`**  
-  Daily metrics by pickup zone
-
-### Data quality
-- Schema tests: `not_null`, `accepted_values`, `relationships`
-- Custom sanity checks: non-negative fares/distances, reasonable durations, etc.
-
-### Current build scope
-The default development window is configured in `dbt_project.yml`:
-
-```yaml
-vars:
-  start_date: "2022-01-01"
-  end_date: "2022-04-01"
-```
-
-Keep this window small while developing to control BigQuery scan costs. Expand it intentionally for production or larger analyses.
-
----
-
-## Repo structure
-
-```
-.
-├── models/
-│   ├── sources/          # BigQuery public dataset declarations
-│   ├── staging/          # Cleaned/typed canonical models
-│   ├── intermediate/     # Feature engineering & business logic
-│   ├── marts/            # Facts, dimensions, aggregates
-│   └── exposures.yml     # Dashboard dependencies
-├── macros/               # safe_divide, safe_int64, is_valid_trip
-├── seeds/                # taxi_zone_lookup.csv
-├── analysis/
-├── scripts/              # Python helpers (download_seed_data.py)
-├── infra/terraform/      # GCP infrastructure
-├── .github/workflows/    # CI, deploy, nightly workflows
-├── dbt_project.yml
-├── packages.yml
-├── package-lock.yml
-├── profiles.yml.template
-├── setup.md              # First-time setup and operations guide
-├── README.md
-└── LICENSE
-```
-
----
-
-## Fusion compatibility
-
-This project parses and compiles successfully on the dbt Fusion engine using
-`dbt-fusion 2.0.0-preview.175`:
+Requirements: Python 3.10+, `dbt-bigquery`, a GCP project with BigQuery, and
+Application Default Credentials.
 
 ```bash
-dbt deps --use-v2-compatible-package-downloads
-dbt parse --show-all-deprecations --target dev
-dbt compile --target dev
-dbt compile --target dev --static-analysis strict
-```
-
-The local `dbt` command in this workspace is Fusion-backed. If you install the
-Fusion CLI under a separate command name, use that command for the same checks.
-
-Current Fusion notes:
-- `dbt debug` requires a real `nyc_tlc_trips` profile and GCP project ID. The
-  checked-in `profiles.yml.template` intentionally uses placeholders.
-- Local `dbt docs generate` / `dbt docs serve` may require dbt Core depending
-  on your Fusion version.
-- The GitHub Actions workflows use Workload Identity Federation with dbt Core.
-  BigQuery Workload Identity Federation is not currently a Fusion-supported
-  authentication path, so a future Fusion CI migration should switch auth or
-  wait for Fusion support.
-
----
-
-## Quickstart
-
-### 1) Prerequisites
-- Python 3.10+
-- dbt Core with the BigQuery adapter, or the dbt Fusion CLI for Fusion checks
-- Access to a GCP project + BigQuery
-
-### 2) BigQuery setup
-Create two datasets in your GCP project, or use the Terraform setup in `setup.md`:
-- `taxi_dbt_dev`
-- `taxi_dbt_prod`
-
-### 3) Authentication
-For local development, authenticate with Application Default Credentials:
-
-```bash
+pip install dbt-bigquery
 gcloud auth application-default login
+cp profiles.yml.template profiles.yml
+GCP_PROJECT_ID=your-gcp-project-id dbt build --profiles-dir . --target dev
 ```
 
-For CI/CD, this project uses GitHub OIDC with Google Workload Identity Federation.
+Generate dbt documentation when needed:
 
-### 4) Configure dbt profile
-Create a local `profiles.yml` (do not commit it). Example targets:
-- `dev` → dataset `taxi_dbt_dev`
-- `prod` → dataset `taxi_dbt_prod`
-
-Quick start from the repo template:
 ```bash
-cp profiles.yml.template ~/.dbt/profiles.yml
-```
-
-### 5) Run locally
-```bash
-dbt deps
-dbt debug --target dev
-dbt build --target dev
-```
-
-Generate docs:
-```bash
-dbt docs generate --target dev
+GCP_PROJECT_ID=your-gcp-project-id dbt docs generate --profiles-dir . --target dev
 dbt docs serve
 ```
 
-> Fusion note: use dbt Core for local docs generation for now. Fusion can parse
-> and compile this project, but local docs site generation is still a current
-> Fusion limitation.
+## Infrastructure
 
-See `setup.md` for the complete Terraform, GitHub Actions, and first-run guide.
-
----
-
-## CI/CD with GitHub Actions
-
-### Pull Request workflow (CI)
-Runs on PR:
-- `dbt deps`
-- `dbt compile`
-- `dbt build` against the **dev** dataset, using slim CI when a production manifest is cached
-
-### Main branch workflow (CD)
-Runs on push to `main`:
-- `dbt build` against the **prod** dataset
-- `dbt docs generate`
-- Uploads docs artifacts and caches the production manifest
-
-### Nightly workflow
-Runs on a schedule:
-- `dbt build` against the **prod** dataset to detect data quality drift
-
----
-
-## Cost control
-BigQuery can be expensive if you scan too much data.
-This project defaults to a **date window** using dbt vars for development. Expand the window once everything is stable.
-
----
-## Results
-
-### Questions this project supports
-- **Where is taxi demand highest?** — `fct_daily_zone_metrics` shows trip volume and revenue by zone per day, revealing hot-spots like Midtown, JFK, and the Financial District.
-- **When do passengers ride?** — Time features (`pickup_hour`, `is_weekend`, `is_night`) in `fct_trips` support peak-hour and day-of-week analysis.
-- **How much revenue do airports generate?** — The `is_airport_pickup` flag lets you isolate Newark, JFK, and LaGuardia trips for revenue comparison.
-- **What are citywide trends?** — `fct_daily_citywide_metrics` provides a single-row-per-day summary of rides, revenue, tips, and segment breakdowns.
-- **How fast are taxis?** — `speed_mph` in `int_trips__features` enables speed distribution analyses by zone or time of day.
-
-### dbt lineage
-Generate the lineage graph locally with:
+Terraform creates two datasets, a GitHub Actions service account, and Workload
+Identity Federation in an existing GCP project.
 
 ```bash
-dbt docs generate --target dev
-dbt docs serve
+cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars
+terraform -chdir=infra/terraform init
+terraform -chdir=infra/terraform plan
+terraform -chdir=infra/terraform apply
+terraform -chdir=infra/terraform output github_secrets_to_set
 ```
 
-### Dashboard
-The exposure in `models/exposures.yml` documents the intended dashboard dependencies. Add the dashboard URL there after connecting a BI tool to the production marts.
+For a replacement project, set its ID in the ignored local file:
 
----
-## Security
-Do not commit local credentials or generated artifacts. The `.gitignore` excludes dbt outputs, logs, profiles, local env files, Terraform state/tfvars/plans, provider caches, virtual environments, and editor files.
+```hcl
+# infra/terraform/terraform.tfvars
+project_id = "your-new-gcp-project-id"
+```
 
-Safe templates are committed for local setup:
-- `profiles.yml.template`
-- `infra/terraform/.env.tfvars.example`
-- `infra/terraform/terraform.tfvars.example`
-
-## Useful Commands
+Use a new Terraform workspace so the previous project's state is not reused:
 
 ```bash
-# Refresh package dependencies
-dbt deps
-
-# Compile without building tables
-dbt compile --target dev
-
-# Full local dev build
-dbt build --target dev
-
-# Override the date window
-dbt build --target dev --vars '{"start_date": "2022-01-01", "end_date": "2022-07-01"}'
-
-# Refresh the zone lookup seed file
-python scripts/download_seed_data.py
+terraform -chdir=infra/terraform workspace new your-new-gcp-project-id
+terraform -chdir=infra/terraform plan
+terraform -chdir=infra/terraform apply
 ```
 
----
+Add those three output values as repository Actions secrets:
+
+- `GCP_PROJECT_ID`
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT`
+
+Set `GCP_PROJECT_ID` in your shell for local dbt commands. In GitHub, put it
+under **Settings → Secrets and variables → Actions → Repository secrets**.
+Because Workload Identity resources belong to the new project, replace all
+three GitHub secrets with the new Terraform outputs.
+
+The datasets contain only logical views. Production has `prevent_destroy`;
+inspect every Terraform plan before applying it.
+
+## Automation
+
+- `.github/workflows/ci.yml`: offline `dbt parse` for pull requests.
+- `.github/workflows/deploy.yml`: authenticated `dbt build` after a merge,
+  manual dispatch, and on the first day of each month. The monthly refresh
+  keeps sandbox views alive without daily jobs or persistent model storage.
+- `tests/query_quota.sql`: fails the authenticated build when this month's
+  billed queries reach 80% of BigQuery Sandbox's 1 TiB allowance, using the
+  existing GitHub Actions failure notification as the alert.
+
+The project does not need a storage monitor: its dbt objects are logical views,
+so they consume no BigQuery storage quota.
+
+## Data
+
+- Trips: `bigquery-public-data.new_york_taxi_trips.tlc_yellow_trips_2022`
+- Zones: `bigquery-public-data.new_york_taxi_trips.taxi_zone_geom`
+
+The marts support citywide and zone demand, revenue, airport trips, passenger
+counts, trip duration, distance, and time-of-day analysis.
 
 ## License
+
 See `LICENSE`.
