@@ -52,6 +52,12 @@ resource "google_project_iam_member" "ci_job_user" {
   member  = "serviceAccount:${google_service_account.ci.email}"
 }
 
+resource "google_project_iam_member" "ci_resource_viewer" {
+  project = var.project_id
+  role    = "roles/bigquery.resourceViewer"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+
 resource "google_bigquery_dataset_iam_member" "dev_editor" {
   project    = var.project_id
   dataset_id = google_bigquery_dataset.dev.dataset_id
