@@ -3,42 +3,22 @@ provider "google" {}
 provider "google-beta" {}
 
 locals {
-  effective_project_id     = var.create_project ? google_project.this[0].project_id : var.project_id
-  effective_project_number = var.create_project ? tostring(google_project.this[0].number) : data.google_project.existing[0].number
-  github_repository        = "${var.github_owner}/${var.github_repo}"
-  bigquery_expiration_ms   = 60 * 24 * 60 * 60 * 1000
-}
-
-data "google_project" "existing" {
-  count      = var.create_project ? 0 : 1
-  project_id = var.project_id
-}
-
-resource "google_project" "this" {
-  count           = var.create_project ? 1 : 0
-  project_id      = var.project_id
-  name            = var.project_name
-  billing_account = var.billing_account
-  org_id          = var.folder_id == null ? var.org_id : null
-  folder_id       = var.folder_id
+  github_repository = "${var.github_owner}/${var.github_repo}"
 }
 
 resource "google_project_service" "required" {
   for_each = var.enable_apis
-  project  = local.effective_project_id
+  project  = var.project_id
   service  = each.value
 
   disable_on_destroy = false
-
-  depends_on = [google_project.this]
 }
 
 resource "google_bigquery_dataset" "dev" {
-  project                         = local.effective_project_id
-  dataset_id                      = var.dev_dataset_id
-  location                        = var.bigquery_location
-  default_table_expiration_ms     = local.bigquery_expiration_ms
-  default_partition_expiration_ms = local.bigquery_expiration_ms
+  project                     = var.project_id
+  dataset_id                  = var.dev_dataset_id
+  location                    = var.bigquery_location
+  default_table_expiration_ms = 7 * 24 * 60 * 60 * 1000
 
   delete_contents_on_destroy = false
 
@@ -46,12 +26,9 @@ resource "google_bigquery_dataset" "dev" {
 }
 
 resource "google_bigquery_dataset" "prod" {
-  project                         = local.effective_project_id
-  dataset_id                      = var.prod_dataset_id
-  location                        = var.bigquery_location
-  default_table_expiration_ms     = local.bigquery_expiration_ms
-  default_partition_expiration_ms = local.bigquery_expiration_ms
-
+  project                    = var.project_id
+  dataset_id                 = var.prod_dataset_id
+  location                   = var.bigquery_location
   delete_contents_on_destroy = false
 
   lifecycle {
@@ -64,32 +41,26 @@ resource "google_bigquery_dataset" "prod" {
 resource "google_service_account" "ci" {
   account_id   = var.ci_service_account_id
   display_name = "GitHub dbt CI"
-  project      = local.effective_project_id
+  project      = var.project_id
 
   depends_on = [google_project_service.required]
 }
 
 resource "google_project_iam_member" "ci_job_user" {
-  project = local.effective_project_id
+  project = var.project_id
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${google_service_account.ci.email}"
 }
 
-resource "google_project_iam_member" "ci_data_editor" {
-  project = local.effective_project_id
-  role    = "roles/bigquery.dataEditor"
-  member  = "serviceAccount:${google_service_account.ci.email}"
-}
-
 resource "google_bigquery_dataset_iam_member" "dev_editor" {
-  project    = local.effective_project_id
+  project    = var.project_id
   dataset_id = google_bigquery_dataset.dev.dataset_id
   role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${google_service_account.ci.email}"
 }
 
 resource "google_bigquery_dataset_iam_member" "prod_editor" {
-  project    = local.effective_project_id
+  project    = var.project_id
   dataset_id = google_bigquery_dataset.prod.dataset_id
   role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${google_service_account.ci.email}"
@@ -97,7 +68,7 @@ resource "google_bigquery_dataset_iam_member" "prod_editor" {
 
 resource "google_iam_workload_identity_pool" "github" {
   provider                  = google-beta
-  project                   = local.effective_project_id
+  project                   = var.project_id
   workload_identity_pool_id = var.wif_pool_id
   display_name              = "GitHub Actions Pool"
   description               = "OIDC identities for GitHub Actions."
@@ -107,7 +78,7 @@ resource "google_iam_workload_identity_pool" "github" {
 
 resource "google_iam_workload_identity_pool_provider" "github" {
   provider                           = google-beta
-  project                            = local.effective_project_id
+  project                            = var.project_id
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = var.wif_provider_id
   display_name                       = "GitHub Provider"
