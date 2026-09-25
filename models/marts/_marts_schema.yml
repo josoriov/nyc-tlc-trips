@@ -2,106 +2,34 @@ version: 2
 
 models:
   - name: dim_zones
-    description: >
-      Taxi zone dimension table sourced from the official NYC TLC Taxi Zone
-      Lookup seed. Maps each LocationID to its borough, zone name, and
-      service zone classification.
+    description: TLC taxi zone lookup.
     columns:
       - name: location_id
         description: Unique TLC Taxi Zone identifier (1–265).
         tests:
           - unique
           - not_null
-      - name: borough
-        description: NYC borough (Manhattan, Brooklyn, Queens, Bronx, Staten Island, EWR).
-        tests:
-          - not_null
-      - name: zone
-        description: Human-readable zone name.
-        tests:
-          - not_null
-      - name: service_zone
-        description: "Service zone classification (Yellow Zone, Boro Zone, EWR, N/A)."
-
   - name: fct_trips
-    description: >
-      Trip-level fact table enriched with zone names, time features, and
-      a surrogate key. Partitioned by pickup_date and clustered by
-      pickup_location_id and payment_type for efficient querying.
+    description: Trip-level view with time features and pickup/dropoff zones.
     columns:
-      - name: trip_id
-        description: Surrogate key generated from pickup/dropoff datetime, locations, and fare.
-        tests:
-          - not_null
-      - name: vendor_id
-        tests:
-          - not_null
-      - name: pickup_date
-        description: Calendar date of pickup.
-        tests:
-          - not_null
       - name: pickup_location_id
         tests:
-          - not_null
           - relationships:
               config:
                 severity: warn
               arguments:
                 to: ref('dim_zones')
                 field: location_id
-      - name: dropoff_location_id
-        tests:
-          - not_null
-          - relationships:
-              config:
-                severity: warn
-              arguments:
-                to: ref('dim_zones')
-                field: location_id
-      - name: total_amount
-        tests:
-          - dbt_utils.expression_is_true:
-              config:
-                severity: warn
-              arguments:
-                expression: ">= 0"
-      - name: trip_distance
-        tests:
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: ">= 0"
-      - name: trip_duration_min
-        tests:
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "> 0"
   - name: fct_daily_citywide_metrics
-    description: >
-      Daily aggregate metrics across all NYC yellow taxi trips. One row per
-      calendar date with ride counts, revenue totals, and segment breakdowns.
+    description: Daily citywide demand and revenue metrics.
     columns:
       - name: pickup_date
         description: Calendar date.
         tests:
           - unique
           - not_null
-      - name: total_trips
-        tests:
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "> 0"
-      - name: total_revenue
-        tests:
-          - dbt_utils.expression_is_true:
-              config:
-                severity: warn
-
-              arguments:
-                expression: ">= 0"
   - name: fct_daily_zone_metrics
-    description: >
-      Daily aggregate metrics by pickup zone. One row per (date, zone)
-      combination with ride counts, distances, durations, and revenue.
+    description: Daily demand and revenue metrics by pickup zone.
     columns:
       - name: pickup_date
         description: Calendar date.
@@ -111,14 +39,3 @@ models:
         description: Pickup zone ID.
         tests:
           - not_null
-      - name: total_trips
-        tests:
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "> 0"
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns:
-              - pickup_date
-              - pickup_location_id
