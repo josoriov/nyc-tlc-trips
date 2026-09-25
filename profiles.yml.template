@@ -4,7 +4,7 @@ nyc_tlc_trips:
     dev:
       type: bigquery
       method: oauth
-      project: your-gcp-project-id
+      project: "{{ env_var('GCP_PROJECT_ID', 'your-gcp-project-id') }}"
       dataset: taxi_dbt_dev
       location: US
       threads: 4
@@ -13,7 +13,7 @@ nyc_tlc_trips:
     prod:
       type: bigquery
       method: oauth
-      project: your-gcp-project-id
+      project: "{{ env_var('GCP_PROJECT_ID', 'your-gcp-project-id') }}"
       dataset: taxi_dbt_prod
       location: US
       threads: 4
