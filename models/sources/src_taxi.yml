@@ -9,6 +9,9 @@ sources:
     database: bigquery-public-data
     schema: new_york_taxi_trips
     tables:
+      - name: taxi_zones
+        identifier: taxi_zone_geom
+        description: Public TLC taxi zone names and boroughs.
       - name: yellow_trips
         identifier: tlc_yellow_trips_2022
         description: >

@@ -1,12 +1,6 @@
-with zones as (
-
-    select * from {{ ref('taxi_zone_lookup') }}
-
-)
-
-select
-    cast(LocationID as int64) as location_id,
-    Borough as borough,
-    Zone as zone,
-    service_zone
-from zones
+select distinct
+    safe_cast(zone_id as int64) as location_id,
+    borough,
+    zone_name as zone
+from {{ source('taxi', 'taxi_zones') }}
+where safe_cast(zone_id as int64) is not null

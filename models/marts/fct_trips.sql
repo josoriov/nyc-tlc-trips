@@ -75,15 +75,13 @@ select
     -- pickup zone enrichment
     pz.borough as pickup_borough,
     pz.zone as pickup_zone,
-    pz.service_zone as pickup_service_zone,
 
     -- dropoff zone enrichment
     dz.borough as dropoff_borough,
-    dz.zone as dropoff_zone,
-    dz.service_zone as dropoff_service_zone
+    dz.zone as dropoff_zone
 
 from trips
-left join zones_pickup pz
+left join {{ ref('dim_zones') }} pz
     on trips.pickup_location_id = pz.location_id
-left join zones_dropoff dz
+left join {{ ref('dim_zones') }} dz
     on trips.dropoff_location_id = dz.location_id
