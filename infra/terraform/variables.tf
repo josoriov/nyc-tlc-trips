@@ -8,62 +8,6 @@ variable "project_id" {
   }
 }
 
-variable "project_name" {
-  description = "Display name used only when create_project=true."
-  type        = string
-  default     = "NYC TLC Trips"
-}
-
-variable "create_project" {
-  description = "Create the GCP project via Terraform. Keep false if project already exists."
-  type        = bool
-  default     = false
-}
-
-variable "billing_account" {
-  description = "Billing account ID (required when create_project=true)."
-  type        = string
-  default     = null
-  sensitive   = true
-
-  validation {
-    condition     = !var.create_project || var.billing_account != null
-    error_message = "billing_account is required when create_project=true."
-  }
-
-  validation {
-    condition     = var.billing_account == null || can(regex("^[A-Z0-9]{6}-[A-Z0-9]{6}-[A-Z0-9]{6}$", var.billing_account))
-    error_message = "billing_account must match 000000-000000-000000."
-  }
-}
-
-variable "org_id" {
-  description = "Organization ID (required when create_project=true and folder_id is null)."
-  type        = string
-  default     = null
-
-  validation {
-    condition     = !var.create_project || var.folder_id != null || var.org_id != null
-    error_message = "Set org_id or folder_id when create_project=true."
-  }
-
-  validation {
-    condition     = var.org_id == null || can(regex("^[0-9]{6,20}$", var.org_id))
-    error_message = "org_id must be numeric."
-  }
-}
-
-variable "folder_id" {
-  description = "Folder ID (optional alternative to org_id when create_project=true)."
-  type        = string
-  default     = null
-
-  validation {
-    condition     = var.folder_id == null || can(regex("^[0-9]{6,20}$", var.folder_id))
-    error_message = "folder_id must be numeric."
-  }
-}
-
 variable "bigquery_location" {
   description = "BigQuery dataset location."
   type        = string

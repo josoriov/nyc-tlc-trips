@@ -3,6 +3,9 @@ name: dbt Deploy (prod)
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch: {}
 
 permissions:
   id-token: write   # Required for Workload Identity Federation
@@ -13,98 +16,25 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DBT_PROFILES_DIR: ${{ github.workspace }}
-  PYTHON_VERSION: "3.11"
-  DBT_TARGET: prod
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
 jobs:
   dbt-deploy:
-    name: dbt build + docs (prod)
+    name: Build production models
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Authenticate to Google Cloud (WIF)
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dbt
-        run: pip install --quiet dbt-bigquery
-
-      - name: Create profiles.yml
-        run: |
-          cat > "$DBT_PROFILES_DIR/profiles.yml" << 'EOF'
-          nyc_tlc_trips:
-            target: prod
-            outputs:
-              dev:
-                type: bigquery
-                method: oauth
-                project: "{{ env_var('GCP_PROJECT_ID') }}"
-                dataset: taxi_dbt_dev
-                location: US
-                threads: 4
-                timeout_seconds: 300
-                retries: 1
-              prod:
-                type: bigquery
-                method: oauth
-                project: "{{ env_var('GCP_PROJECT_ID') }}"
-                dataset: taxi_dbt_prod
-                location: US
-                threads: 4
-                timeout_seconds: 300
-                retries: 1
-          EOF
-
-      - name: dbt deps
-        run: dbt deps
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-
-      - name: dbt seed
-        run: dbt seed --target "$DBT_TARGET"
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-
-      - name: dbt build (prod)
-        run: dbt build --target "$DBT_TARGET"
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-
-      - name: dbt docs generate
-        run: dbt docs generate --target "$DBT_TARGET"
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-
-      # --- Cache manifest for slim CI in PRs ---
-      - name: Prepare manifest for cache
-        run: |
-          mkdir -p prod-run-artifacts
-          cp target/manifest.json prod-run-artifacts/manifest.json
-
-      - name: Save production manifest
-        uses: actions/cache/save@v4
-        with:
-          path: prod-run-artifacts
-          key: dbt-prod-manifest-${{ github.sha }}
-
-      # --- Upload dbt docs as artifact ---
-      - name: Upload dbt docs
-        uses: actions/upload-artifact@v4
-        with:
-          name: dbt-docs
-          path: |
-            target/catalog.json
-            target/manifest.json
-            target/index.html
-          retention-days: 30
+          python-version: "3.11"
+      - run: pip install --quiet dbt-bigquery
+      - run: cp profiles.yml.template profiles.yml
+      - run: dbt build --profiles-dir . --target prod

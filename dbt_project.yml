@@ -4,39 +4,17 @@ config-version: 2
 
 profile: "nyc_tlc_trips"
 
-model-paths: ["models"]
-analysis-paths: ["analysis"]
-test-paths: ["tests"]
-seed-paths: ["seeds"]
-macro-paths: ["macros"]
 clean-targets:
   - "target"
-  - "dbt_packages"
   - "logs"
 
 vars:
   start_date: "2022-01-01"
   end_date: "2022-04-01"
 
-seeds:
-  nyc_tlc_trips:
-    taxi_zone_lookup:
-      +column_types:
-        LocationID: int64
-        Borough: string
-        Zone: string
-        service_zone: string
-
 models:
   nyc_tlc_trips:
     +materialized: view
-    staging:
-      +schema: staging
-    intermediate:
-      +schema: intermediate
-    marts:
-      +schema: marts
-      +materialized: table
 
 flags:
   require_generic_test_arguments_property: true

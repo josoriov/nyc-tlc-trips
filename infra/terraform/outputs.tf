@@ -1,11 +1,6 @@
 output "project_id" {
   description = "Target GCP project ID."
-  value       = local.effective_project_id
-}
-
-output "project_number" {
-  description = "Target GCP project number."
-  value       = local.effective_project_number
+  value       = var.project_id
 }
 
 output "dev_dataset" {
@@ -31,9 +26,8 @@ output "workload_identity_provider_name" {
 output "github_secrets_to_set" {
   description = "Secrets required by GitHub Actions."
   value = {
-    GCP_PROJECT_ID                 = local.effective_project_id
+    GCP_PROJECT_ID                 = var.project_id
     GCP_WORKLOAD_IDENTITY_PROVIDER = google_iam_workload_identity_pool_provider.github.name
     GCP_SERVICE_ACCOUNT            = google_service_account.ci.email
   }
 }
-

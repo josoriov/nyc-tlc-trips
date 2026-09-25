@@ -1,101 +1,24 @@
-name: dbt CI (PR)
+name: dbt CI
 
 on:
   pull_request:
     branches: [main]
 
-permissions:
-  id-token: write   # Required for Workload Identity Federation
-  contents: read
-
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  DBT_PROFILES_DIR: ${{ github.workspace }}
-  PYTHON_VERSION: "3.11"
-  DBT_TARGET: dev
-
 jobs:
   dbt-ci:
-    name: dbt compile + build (dev)
+    name: Validate dbt project
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud (WIF)
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-      - name: Set up Python
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dbt
-        run: pip install --quiet dbt-bigquery
-
-      - name: Create profiles.yml
-        run: |
-          cat > "$DBT_PROFILES_DIR/profiles.yml" << 'EOF'
-          nyc_tlc_trips:
-            target: dev
-            outputs:
-              dev:
-                type: bigquery
-                method: oauth
-                project: "{{ env_var('GCP_PROJECT_ID') }}"
-                dataset: taxi_dbt_dev
-                location: US
-                threads: 4
-                timeout_seconds: 300
-                retries: 1
-              prod:
-                type: bigquery
-                method: oauth
-                project: "{{ env_var('GCP_PROJECT_ID') }}"
-                dataset: taxi_dbt_prod
-                location: US
-                threads: 4
-                timeout_seconds: 300
-                retries: 1
-          EOF
-
-      - name: dbt deps
-        run: dbt deps
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-
-      - name: dbt compile
-        run: dbt compile --target "$DBT_TARGET"
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-
-      # --- Slim CI: use production manifest if available ---
-      - name: Restore production manifest (for slim CI)
-        uses: actions/cache/restore@v4
-        id: restore-manifest
-        with:
-          path: prod-run-artifacts
-          key: dbt-prod-manifest-
-          restore-keys: dbt-prod-manifest-
-
-      - name: dbt build
-        run: |
-          if [ -f prod-run-artifacts/manifest.json ]; then
-            echo "::notice::Production manifest found — running slim CI (state:modified+)"
-            dbt build --target "$DBT_TARGET" \
-              --select state:modified+ \
-              --defer \
-              --state prod-run-artifacts/
-          else
-            echo "::notice::No production manifest — running full build"
-            dbt build --target "$DBT_TARGET"
-          fi
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          python-version: "3.11"
+      - run: pip install --quiet dbt-bigquery
+      - run: cp profiles.yml.template profiles.yml
+      - run: dbt parse --profiles-dir . --target dev

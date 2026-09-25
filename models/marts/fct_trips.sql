@@ -1,42 +1,31 @@
-{{
-    config(
-        materialized='table',
-        partition_by={
-            "field": "pickup_date",
-            "data_type": "date",
-            "granularity": "month"
-        },
-        cluster_by=["pickup_location_id", "payment_type"]
-    )
-}}
-
 with trips as (
 
-    select * from {{ ref('int_trips__features') }}
-
-),
-
-zones_pickup as (
-
-    select * from {{ ref('dim_zones') }}
-
-),
-
-zones_dropoff as (
-
-    select * from {{ ref('dim_zones') }}
+    select
+        *,
+        date(pickup_datetime) as pickup_date,
+        extract(hour from pickup_datetime) as pickup_hour,
+        timestamp_diff(dropoff_datetime, pickup_datetime, minute) as trip_duration_min,
+        safe_divide(
+            trip_distance,
+            timestamp_diff(dropoff_datetime, pickup_datetime, second) / 3600.0
+        ) as speed_mph,
+        extract(dayofweek from pickup_datetime) in (1, 7) as is_weekend,
+        extract(hour from pickup_datetime) not between 6 and 20 as is_night,
+        pickup_location_id in (1, 132, 138) as is_airport_pickup
+    from {{ ref('stg_taxi__yellow_trips') }}
+    where timestamp_diff(dropoff_datetime, pickup_datetime, minute) between 1 and 1439
 
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key([
-        'trips.vendor_id',
-        'trips.pickup_datetime',
-        'trips.dropoff_datetime',
-        'trips.pickup_location_id',
-        'trips.dropoff_location_id',
-        'trips.fare_amount'
-    ]) }} as trip_id,
+    farm_fingerprint(to_json_string(struct(
+        trips.vendor_id,
+        trips.pickup_datetime,
+        trips.dropoff_datetime,
+        trips.pickup_location_id,
+        trips.dropoff_location_id,
+        trips.fare_amount
+    ))) as trip_id,
 
     -- dimensions
     trips.vendor_id,
@@ -75,15 +64,13 @@ select
     -- pickup zone enrichment
     pz.borough as pickup_borough,
     pz.zone as pickup_zone,
-    pz.service_zone as pickup_service_zone,
 
     -- dropoff zone enrichment
     dz.borough as dropoff_borough,
-    dz.zone as dropoff_zone,
-    dz.service_zone as dropoff_service_zone
+    dz.zone as dropoff_zone
 
 from trips
-left join zones_pickup pz
+left join {{ ref('dim_zones') }} pz
     on trips.pickup_location_id = pz.location_id
-left join zones_dropoff dz
+left join {{ ref('dim_zones') }} dz
     on trips.dropoff_location_id = dz.location_id
