@@ -48,3 +48,6 @@ terraform.rc
 .DS_Store
 .idea/
 .vscode/
+
+# Archify candidates, receipts, browser captures, and working exports
+/.archify/

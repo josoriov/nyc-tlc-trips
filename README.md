@@ -3,6 +3,19 @@
 A small dbt/BigQuery project that turns NYC yellow-taxi public data into
 dashboard-ready logical views without storing source or transformed data.
 
+## Architecture
+
+![NYC TLC Trips architecture: Terraform provisions identity and datasets; GitHub Actions authenticates through Workload Identity Federation and runs dbt; public trips and taxi zones feed five BigQuery logical views.](docs/architecture/architecture.svg)
+
+[Explore the interactive architecture](docs/architecture/architecture.html) by downloading
+the HTML file and opening it in a browser. It includes light/dark themes,
+source-code links, and image exports, and works offline.
+
+Solid arrows show SQL dependencies, not copied data. Dashed arrows show
+provisioning and builds; the security arrow shows keyless authentication.
+Citywide metrics roll up the zone aggregates. The dashboard exposure is planned;
+there is no live dashboard yet.
+
 ## What it builds
 
 | Model | Type | Purpose |
